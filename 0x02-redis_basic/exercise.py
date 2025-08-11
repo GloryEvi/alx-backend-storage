@@ -3,7 +3,8 @@
 Redis Cache module
 
 This module provides a Cache class for storing and retrieving data
-using Redis as the backend storage system with method call counting.
+using Redis as the backend storage system with method call counting
+and call history tracking.
 """
 import redis
 import uuid
@@ -39,6 +40,40 @@ def count_calls(method: Callable) -> Callable:
     return wrapper
 
 
+def call_history(method: Callable) -> Callable:
+    """
+    Decorator that stores the history of inputs and outputs for a function
+
+    Args:
+        method: The method to be decorated
+
+    Returns:
+        The wrapped method that stores input and output history in Redis
+    """
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        """
+        Wrapper function that stores inputs/outputs and calls original method
+
+        Args:
+            self: The instance of the class
+            *args: Variable length argument list
+            **kwargs: Arbitrary keyword arguments
+
+        Returns:
+            The result of the original method call
+        """
+        input_key = "{}:inputs".format(method.__qualname__)
+        output_key = "{}:outputs".format(method.__qualname__)
+
+        self._redis.rpush(input_key, str(args))
+        output = method(self, *args, **kwargs)
+        self._redis.rpush(output_key, output)
+
+        return output
+    return wrapper
+
+
 class Cache:
     """
     Cache class for Redis operations
@@ -57,6 +92,7 @@ class Cache:
         self._redis = redis.Redis()
         self._redis.flushdb()
 
+    @call_history
     @count_calls
     def store(self, data: Union[str, bytes, int, float]) -> str:
         """
