@@ -152,3 +152,26 @@ class Cache:
             The retrieved data as an integer, or None if key doesn't exist
         """
         return self.get(key, fn=int)
+
+
+def replay(method: Callable) -> None:
+    """
+    Display the history of calls of a particular function
+
+    Args:
+        method: The method to display history for
+    """
+    redis_instance = redis.Redis()
+    method_name = method.__qualname__
+
+    # Get inputs and outputs from Redis
+    inputs = redis_instance.lrange("{}:inputs".format(method_name), 0, -1)
+    outputs = redis_instance.lrange("{}:outputs".format(method_name), 0, -1)
+
+    print("{} was called {} times:".format(method_name, len(inputs)))
+
+    # Use zip to pair inputs with outputs
+    for input_args, output in zip(inputs, outputs):
+        input_str = input_args.decode("utf-8")
+        output_str = output.decode("utf-8")
+        print("{}(*{}) -> {}".format(method_name, input_str, output_str))
